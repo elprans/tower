@@ -1,8 +1,10 @@
 from setuptools import setup, find_packages
 
+VERSION = '0.5.0'
+
 setup(
     name='tower',
-    version='0.4.1',
+    version=VERSION,
     description='Pull strings from a variety of sources, collapse whitespace, '
                 'support context (msgctxt), and merging .pot files.',
     long_description=open('README.rst').read(),
