@@ -17,11 +17,6 @@ from babel.messages.extract import extract_python
 from jinja2 import ext
 
 
-INSTALL_JINJA_TRANSLATIONS = getattr(settings,
-                                     'TOWER_INSTALL_JINJA_TRANSLATIONS',
-                                     True)
-
-
 def ugettext(message, context=None):
     """Always return a stripped string, localized if possible"""
     stripped = strip_whitespace(message)
@@ -105,7 +100,11 @@ def activate(locale):
     that's dumb and we want to be able to load different files depending on
     what part of the site the user is in, we'll make our own function here.
     """
-    if INSTALL_JINJA_TRANSLATIONS:
+
+    install_jinja = getattr(settings,
+                            'TOWER_INSTALL_JINJA_TRANSLATIONS',
+                            True)
+    if install_jinja:
         install_jinja_translations()
 
     if django.VERSION >= (1, 3):

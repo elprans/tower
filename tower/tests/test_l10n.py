@@ -4,6 +4,7 @@ from builtins import str
 from io import StringIO, BytesIO
 
 import django
+from django.conf import settings
 from django.utils import translation
 
 import jingo
@@ -61,17 +62,22 @@ def test_install_jinja_translations():
     eq_(env.globals['gettext'], _)
 
 
-@patch.object(tower, 'INSTALL_JINJA_TRANSLATIONS', False)
 def test_no_install_jinja_translations():
     """
     Setting `TOWER_INSTALL_JINJA_TRANSLATIONS` to False should skip setting
     the gettext and ngettext functions in the Jinja2 environment.
     """
-    env = get_jingo_env()
+    orig_install_jinja = \
+        getattr(settings, 'TOWER_INSTALL_JINJA_TRANSLATIONS', True)
+    settings.TOWER_INSTALL_JINJA_TRANSLATIONS = False
+    try:
+        env = get_jingo_env()
 
-    env.install_null_translations()
-    tower.activate('xx')
-    ok_(env.globals['gettext'] != _)
+        env.install_null_translations()
+        tower.activate('xx')
+        ok_(env.globals['gettext'] != _)
+    finally:
+        settings.TOWER_INSTALL_JINJA_TRANSLATIONS = orig_install_jinja
 
 
 @with_setup(setup, teardown)
