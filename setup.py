@@ -1,8 +1,10 @@
 from setuptools import setup, find_packages
 
+VERSION = '0.5.1'
+
 setup(
     name='tower',
-    version='0.4.1',
+    version=VERSION,
     description='Pull strings from a variety of sources, collapse whitespace, '
                 'support context (msgctxt), and merging .pot files.',
     long_description=open('README.rst').read(),
@@ -23,8 +25,8 @@ setup(
         'License :: OSI Approved :: BSD License',
         'Operating System :: OS Independent',
         'Programming Language :: Python',
-        'Programming Language :: Python :: 2.6',
         'Programming Language :: Python :: 2.7',
+        'Programming Language :: Python :: 3.6',
         'Topic :: Software Development :: Libraries :: Python Modules',
     ]
 )
