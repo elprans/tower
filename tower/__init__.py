@@ -127,42 +127,62 @@ def _activate(locale):
     if t is not None:
         return t
 
-    # Django's activate() simply calls translation() and adds it to a global.
-    # We'll do the same here, first calling django's translation() so it can
-    # do everything it needs to do, and then calling gettext directly to
-    # load the rest.  We make a deepcopy because Django will return the en-US
-    # catalog if it doesn't have a locale (but we do).  We don't want to merge
-    # our foreign catalog into en-US.  Since Django stuck the en-US catalog
-    # into its cache for this locale, we have to update that too.
-    t = copy.deepcopy(django_trans.translation(locale))
-    if hasattr(t, 'set_language'):
-        # not required for django 1.8+
-        t.set_language(locale)
-    try:
-        # When trying to load css, js, and images through the Django server
-        # gettext() throws an exception saying it can't find the .mo files.  I
-        # suspect this has something to do with Django trying not to load
-        # extra stuff for requests that won't need it.  I do know that I don't
-        # want to try to debug it.  This is what Django does in their function
-        # also.
-        #
+    if django.VERSION >= (1, 10):
+        locale_paths = []
+
         # We check for SETTINGS_MODULE here because if it's not here, then
-        # it's possible we're in a test using override_settings and we don't
-        # want to flip out.
+        # it's possible we're in a test using override_settings and we
+        # don't want to flip out.
         settings_module = getattr(settings, 'SETTINGS_MODULE', None)
         if settings_module:
-            # If you've got extra .mo files to load, this is the place.
-            path = import_module(settings_module).path
-            domain = getattr(settings, 'TEXT_DOMAIN', 'messages')
-            bonus = gettext.translation(domain=domain, localedir=path('locale'), languages=[locale],
-                                        codeset='utf-8')
-            t.merge(bonus)
+            path = import_module(settings_module).path('locale')
+            if path:
+                locale_paths.append(path)
 
-            # Overwrite t (defaults to en-US) with our real locale's plural form
-            t.plural = bonus.plural
+        locale_paths.extend(getattr(settings, 'LOCALE_PATHS', []))
+        domain = getattr(settings, 'TEXT_DOMAIN', 'messages')
+        t = django_trans.DjangoTranslation(
+            locale, domain=domain, localedirs=locale_paths)
+    else:
+        # Django's activate() simply calls translation() and adds it to a
+        # global. We'll do the same here, first calling django's translation()
+        # so it can do everything it needs to do, and then calling gettext
+        # directly to load the rest.  We make a deepcopy because Django will
+        # return the en-US catalog if it doesn't have a locale (but we do).  We
+        # don't want to merge our foreign catalog into en-US.  Since Django
+        # stuck the en-US catalog into its cache for this locale, we have to
+        # update that too.
+        t = copy.deepcopy(django_trans.translation(locale))
+        if hasattr(t, 'set_language'):
+            # not required for django 1.8+
+            t.set_language(locale)
+        try:
+            # When trying to load css, js, and images through the Django server
+            # gettext() throws an exception saying it can't find the .mo files.
+            # I suspect this has something to do with Django trying not to load
+            # extra stuff for requests that won't need it.  I do know that I
+            # don't want to try to debug it.  This is what Django does in their
+            # function also.
+            #
+            # We check for SETTINGS_MODULE here because if it's not here, then
+            # it's possible we're in a test using override_settings and we
+            # don't want to flip out.
+            settings_module = getattr(settings, 'SETTINGS_MODULE', None)
+            if settings_module:
+                # If you've got extra .mo files to load, this is the place.
+                path = import_module(settings_module).path
+                domain = getattr(settings, 'TEXT_DOMAIN', 'messages')
+                bonus = gettext.translation(
+                    domain=domain, localedir=path('locale'),
+                    languages=[locale], codeset='utf-8')
+                t.merge(bonus)
 
-    except IOError:
-        pass
+                # Overwrite t (defaults to en-US) with our real locale's plural
+                # form.
+                t.plural = bonus.plural
+
+        except IOError:
+            pass
 
     django_trans._translations[locale] = t
     return t
