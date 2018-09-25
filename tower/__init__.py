@@ -129,6 +129,8 @@ def _activate(locale):
 
     if django.VERSION >= (1, 10):
         locale_paths = []
+        raw_gettext_trans = None
+        domain = getattr(settings, 'TEXT_DOMAIN', 'messages')
 
         # We check for SETTINGS_MODULE here because if it's not here, then
         # it's possible we're in a test using override_settings and we
@@ -138,11 +140,22 @@ def _activate(locale):
             path = import_module(settings_module).path('locale')
             if path:
                 locale_paths.append(path)
+                try:
+                    raw_gettext_trans = gettext.translation(
+                        domain=domain, localedir=path,
+                        languages=[locale], codeset='utf-8')
+                except IOError:
+                    pass
 
         locale_paths.extend(getattr(settings, 'LOCALE_PATHS', []))
-        domain = getattr(settings, 'TEXT_DOMAIN', 'messages')
         t = django_trans.DjangoTranslation(
             locale, domain=domain, localedirs=locale_paths)
+
+        if raw_gettext_trans is not None:
+            # Overwrite t (defaults to en-US) with our real locale's plural
+            # form.
+            t.plural = raw_gettext_trans.plural
+
     else:
         # Django's activate() simply calls translation() and adds it to a
         # global. We'll do the same here, first calling django's translation()
