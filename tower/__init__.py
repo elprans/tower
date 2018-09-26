@@ -3,9 +3,11 @@ from builtins import object
 from importlib import import_module
 import copy
 import gettext
+import logging
 import re
 
 import django
+import django.conf.locale
 from django.conf import settings
 from django.utils import six
 from django.utils.functional import lazy
@@ -15,6 +17,9 @@ from django.utils.translation import (trans_real as django_trans,
 
 from babel.messages.extract import extract_python
 from jinja2 import ext
+
+
+logger = logging.getLogger(__name__)
 
 
 def ugettext(message, context=None):
@@ -128,8 +133,9 @@ def _activate(locale):
         return t
 
     if django.VERSION >= (1, 10):
+        default_locale_path = None
+        fallback_builtin_trans = None
         locale_paths = []
-        raw_gettext_trans = None
         domain = getattr(settings, 'TEXT_DOMAIN', 'messages')
 
         # We check for SETTINGS_MODULE here because if it's not here, then
@@ -138,23 +144,47 @@ def _activate(locale):
         settings_module = getattr(settings, 'SETTINGS_MODULE', None)
         if settings_module:
             path = import_module(settings_module).path('locale')
+            # If the settings module contains a path with a catalog
+            # for a given locale, use it.
             if path:
-                locale_paths.append(path)
                 try:
-                    raw_gettext_trans = gettext.translation(
+                    gettext.translation(
                         domain=domain, localedir=path,
-                        languages=[locale], codeset='utf-8')
+                        languages=[locale], codeset='utf-8',
+                        fallback=None)
                 except IOError:
-                    pass
+                    logger.debug('could not find local gettext files for '
+                                 'the %r locale (looked in %s).',
+                                 locale, path)
+                else:
+                    default_locale_path = path
+
+        if default_locale_path is None:
+            # There are no local catalogs for the locale, fall back
+            # to Django's builtin catalog.
+            try:
+                fallback_builtin_trans = gettext.translation(
+                    domain='django', localedir=django.conf.locale.__path__[0],
+                    languages=[locale], codeset='utf-8',
+                    fallback=None
+                )
+            except IOError:
+                # Django appears to have no catalog for this locale
+                pass
+        else:
+            locale_paths.append(default_locale_path)
+            locale_paths.append(django.conf.locale.__path__[0])
 
         locale_paths.extend(getattr(settings, 'LOCALE_PATHS', []))
+
         t = django_trans.DjangoTranslation(
             locale, domain=domain, localedirs=locale_paths)
 
-        if raw_gettext_trans is not None:
-            # Overwrite t (defaults to en-US) with our real locale's plural
-            # form.
-            t.plural = raw_gettext_trans.plural
+        if fallback_builtin_trans is not None:
+            # There is no catalog in the primary locale path,
+            # so use Django's rules.
+            t.merge(fallback_builtin_trans)
+            t.plural = fallback_builtin_trans.plural
 
     else:
         # Django's activate() simply calls translation() and adds it to a
